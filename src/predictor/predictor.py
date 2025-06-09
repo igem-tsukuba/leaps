@@ -187,9 +187,9 @@ class Predictor:
                 indices = np.argsort(scores)[-self.num_destructions :]
                 tmp = list(seq)
                 for idx in indices:
-                    _candidates = _conserve(tmp[idx], max_score=-1)
-                    if _candidates:
-                        tmp[idx] = random.choice(_candidates)
+                    candidates = _conserve(tmp[idx], max_score=-1)
+                    if candidates:
+                        tmp[idx] = random.choice(candidates)
                 sequence, noise = _destruct("".join(tmp))
                 X_train.append(sequence)
                 y_train.append(0.0 + noise)
