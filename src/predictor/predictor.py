@@ -170,7 +170,7 @@ class Predictor:
 
         X_train, y_train = [], []
         with torch.no_grad():
-            candidates = []
+            results = []
             for seq in self.X_train[:]:
                 token_ids = self.tokenizer.encode(seq, return_tensors="pt")
                 scores = []
@@ -180,10 +180,10 @@ class Predictor:
                     output = model(masked_token_ids.to(self.device))
                     logits = output.logits[0, i]
                     scores.append(logits[token_ids[0, i]].item())
-                candidates.append((seq, scores))
+                results.append((seq, scores))
 
-            candidates.sort(key=lambda x: np.mean(x[1]), reverse=True)
-            for seq, scores in candidates[: self.destruct_per_samples]:
+            results.sort(key=lambda x: np.mean(x[1]), reverse=True)
+            for seq, scores in results[: self.destruct_per_samples]:
                 indices = np.argsort(scores)[-self.num_destructions :]
                 tmp = list(seq)
                 for idx in indices:
@@ -193,7 +193,7 @@ class Predictor:
                 sequence, noise = _destruct("".join(tmp))
                 X_train.append(sequence)
                 y_train.append(0.0 + noise)
-        
+
         self.X_train.extend(X_train)
         self.y_train.extend(y_train)
 
