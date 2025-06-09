@@ -1,0 +1,90 @@
+sampler:
+  fasta_path: "./data/processed/aequorea-victoria.fasta"
+  sample_path: "./data/generated/aequorea-victoria.fasta"
+  num_samples: 100000
+  mutate_ratio: 0.05
+  alphabet: "ACDEFGHIKLMNPQRSTVWY"
+  temperature: 1.0
+
+predictor:
+  ex_max:
+    target: ex_max
+    seed: 42
+    num_epochs: 200
+    model_name_or_path: facebook/esm2_t12_35M_UR50D
+    csv_path: ./data/processed/aequorea-victoria.csv
+    model_path: ./models/ex_max.pt
+    test_size: 0.5
+
+    destruct_per_samples: 2
+    mutate_per_sample: 5
+    noise_ratio: 0.1
+    num_mutations: 2
+    num_destructions: 2
+
+    n_trials: 30
+    timeout: null
+
+    debug: True
+  
+  em_max:
+    target: em_max
+    seed: 42
+    num_epochs: 200
+    model_name_or_path: facebook/esm2_t12_35M_UR50D
+    csv_path: ./data/processed/aequorea-victoria.csv
+    model_path: ./models/em_max.pt
+    test_size: 0.5
+
+    destruct_per_samples: 2
+    mutate_per_sample: 5
+    noise_ratio: 0.1
+    num_mutations: 2
+    num_destructions: 2
+
+    n_trials: 30
+    timeout: null
+
+    debug: True
+
+  brightness:
+    target: brightness
+    seed: 42
+    num_epochs: 200
+    model_name_or_path: facebook/esm2_t12_35M_UR50D
+    csv_path: ./data/processed/aequorea-victoria.csv
+    model_path: ./models/brightness.pt
+    test_size: 0.5
+
+    destruct_per_samples: 6
+    mutate_per_sample: 5
+    noise_ratio: 0.1
+    num_mutations: 2
+    num_destructions: 2
+
+    n_trials: 30
+    timeout: null
+
+    debug: True
+
+evaluator:
+  likelihood:
+    model_name_or_path: "hugohrban/progen2-small"
+    threshold: 0.0
+    batch_size: 32
+    debug: True
+  
+  ex_max:
+    threshold: 400.0
+    batch_size: 32
+    debug: True
+
+  em_max:
+    threshold: 580.0
+    batch_size: 32
+    debug: True
+
+  brightness:
+    threshold: 30.0
+    batch_size: 32
+    debug: True
