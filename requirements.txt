@@ -38,7 +38,6 @@ jsonschema-specifications==2025.4.1
 jupyter-client==8.6.3
 jupyter-core==5.8.1
 kiwisolver==1.4.8
--e file:///home/yushin/dev/py/igem/leap
 lightning-utilities==0.14.3
 mako==1.3.10
 markupsafe==3.0.2
