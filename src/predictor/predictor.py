@@ -184,7 +184,12 @@ class Predictor:
 
             results.sort(key=lambda x: np.mean(x[1]), reverse=True)
             for seq, scores in results[: self.destruct_per_samples]:
-                indices = np.argsort(scores)[-self.num_destructions :]
+                top_k = np.argsort(scores)[-self.num_destructions * 3 :]
+                probs = np.exp(np.array(scores)[top_k])
+                probs = probs / probs.sum()
+                indices = np.random.choice(
+                    top_k, size=self.num_destructions, replace=False, p=probs
+                )
                 tmp = list(seq)
                 for idx in indices:
                     candidates = _conserve(tmp[idx], max_score=-1)
@@ -192,7 +197,8 @@ class Predictor:
                         tmp[idx] = random.choice(candidates)
                 sequence, noise = _destruct("".join(tmp))
                 X_train.append(sequence)
-                y_train.append(0.0 + noise)
+                y_train.append(0.0)
+                # y_train.append(0.0 + noise)
 
         self.X_train.extend(X_train)
         self.y_train.extend(y_train)
@@ -364,6 +370,9 @@ class Predictor:
         return best_score
 
     def train(self) -> None:
+        if not self.debug: 
+            optuna.logging.set_verbosity(optuna.logging.WARNING)
+            
         self.study = optuna.create_study(
             direction="maximize",
             sampler=optuna.samplers.TPESampler(seed=self.seed),
@@ -375,9 +384,10 @@ class Predictor:
 
         self.best_params = self.study.best_params
 
-        print("Best Trial :", self.study.best_trial.number)
-        print("Best Score :", self.study.best_value)
-        print("Best Params:", self.best_params)
+        if self.debug:
+            print("Best Trial :", self.study.best_trial.number)
+            print("Best Score :", self.study.best_value)
+            print("Best Params:", self.best_params)
 
     def load(self) -> None:
         model = torch.load(self.model_path, map_location=self.device)

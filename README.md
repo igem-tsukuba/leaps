@@ -20,6 +20,7 @@ $ source .venv/bin/activate
 # 3. 依存関係のインストール
 $ pip install --upgrade pip
 $ pip install -r requirements.txt
+$ git clone https://huggingface.co/westlake-repl/SaProt_650M_AF2
 ```
 
 ## ⚡️ Quick Start

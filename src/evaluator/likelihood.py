@@ -3,8 +3,13 @@ from typing import List, Mapping, Sequence
 
 import torch
 import torch.nn.functional as F
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from tqdm import tqdm
+
+from saprot.model.saprot.saprot_foldseek_mutation_model import (
+    SaprotFoldseekMutationModel,
+)
+from saprot.utils.foldseek_util import get_struc_seq
+from saprot.utils.constants import foldseek_struc_vocab
 
 
 class Likelihood:
@@ -20,7 +25,8 @@ class Likelihood:
 
         self.cfg = SimpleNamespace(**cfg)
 
-        self.model_name_or_path: str = self.cfg.model_name_or_path
+        self.pdb_path: str = self.cfg.pdb_path
+        self.config_path: str = self.cfg.config_path
         self.threshold: float = self.cfg.threshold
         self.batch_size: int = self.cfg.batch_size
 
@@ -28,25 +34,20 @@ class Likelihood:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.model = (
-            AutoModelForCausalLM.from_pretrained(
-                self.model_name_or_path,
-                trust_remote_code=True,
-            )
-            .to(self.device)
-            .eval()
-        )
-        for p in self.model.parameters():
-            p.requires_grad_(False)
+        parsed_seqs = get_struc_seq("saprot/bin/foldseek", self.pdb_path, ["A"], plddt_mask=False)[
+            "A"
+        ]
+        self.sequecne, self.foldseek_seq, self.combined_seq = parsed_seqs
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            self.model_name_or_path,
-            trust_remote_code=True,
-        )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.tokenizer.padding_side = "right"
+        config = {
+            "foldseek_path": None,
+            "config_path": self.config_path,
+            "load_pretrained": True,
+        }
 
-    @torch.no_grad()
+        self.model = SaprotFoldseekMutationModel(**config).eval().to(self.device)
+        self.tokenizer = self.model.tokenizer
+
     def _log_likelihood(self, batch: Sequence[str]) -> torch.Tensor:
         """
         Args:
@@ -55,33 +56,34 @@ class Likelihood:
         Returns:
             torch.Tensor: 各タンパク質の対数尤度
         """
-        inputs = self.tokenizer(
-            list(batch),
-            return_tensors="pt",
-            padding=True,
-            add_special_tokens=False,
-        ).to(self.device)
-        input_ids = inputs.input_ids  # (B, L)
-        attention_mask = inputs.attention_mask  # (B, L)
+        lls: List[torch.Tensor] = []
 
-        logits = self.model(input_ids).logits  # (B, L, V)
-        logits = logits[:, :-1, :]  # (B, L-1, V)
-        targets = input_ids[:, 1:]  # (B, L-1)
+        for sequence in batch:
+            combined = "".join(aa + self.foldseek_seq[i] for i, aa in enumerate(sequence))
 
-        # tokens = list("ACDEFGHIKLMNPQRSTVWYBXZUO")
-        # ids = self.tokenizer.convert_tokens_to_ids(tokens)
-        # first_tok, last_tok = min(ids), max(ids)
-        first_tok, last_tok = 5, 29
+            masked_sequences, positions = [], []
+            for idx in range(len(sequence)):
+                tokens = self.tokenizer.tokenize(combined)
+                tokens[idx] = "#" + tokens[idx][-1]
+                masked_sequences.append(" ".join(tokens))
+                positions.append(idx + 1)
 
-        logits = logits[:, :, first_tok : last_tok + 1]  # (B, L-1, 25)
-        targets = targets - first_tok  # (B, L-1)
-        masks = attention_mask[:, 1:]  # (B, L-1)
+            ll = 0.0
+            for i in range(0, len(masked_sequences), self.batch_size):
+                sub = masked_sequences[i : i + self.batch_size]
+                inputs = self.tokenizer.batch_encode_plus(
+                    sub, return_tensors="pt", padding=True
+                )
+                inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
-        lls = []
-        for logit, target, mask in zip(logits, targets, masks):
-            ll = -F.cross_entropy(
-                logit[mask.bool()], target[mask.bool()], reduction="mean"
-            )
+                probs = self.model.model(**inputs).logits.softmax(dim=-1)  # (B, L, V)
+
+                for j, pos in enumerate(positions[i : i + self.batch_size]):
+                    aa = sequence[pos - 1]
+                    st = self.tokenizer.get_vocab()[aa + foldseek_struc_vocab[0]]
+                    prob = probs[j, pos, st : st + len(foldseek_struc_vocab)].sum()
+                    ll += torch.log(prob + 1e-12)
+
             lls.append(ll)
 
         return torch.stack(lls)
@@ -113,4 +115,4 @@ class Likelihood:
         scores = self.score(sequences)
         wt_score = scores[0]
         scores = [wt_score - sc for sc in scores]  # todo: 妥当性の確認
-        return [seq for seq, sc in zip(sequences, scores) if sc >= self.threshold]
+        return [sequence for sequence, sc in zip(sequences, scores) if sc >= self.threshold]
