@@ -2,7 +2,6 @@ from types import SimpleNamespace
 from typing import List, Mapping, Sequence
 
 import torch
-import torch.nn.functional as F
 from tqdm import tqdm
 
 from saprot.model.saprot.saprot_foldseek_mutation_model import (
@@ -34,9 +33,9 @@ class Likelihood:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        parsed_seqs = get_struc_seq("saprot/bin/foldseek", self.pdb_path, ["A"], plddt_mask=False)[
-            "A"
-        ]
+        parsed_seqs = get_struc_seq(
+            "saprot/bin/foldseek", self.pdb_path, ["A"], plddt_mask=False
+        )["A"]
         self.sequecne, self.foldseek_seq, self.combined_seq = parsed_seqs
 
         config = {
@@ -59,7 +58,9 @@ class Likelihood:
         lls: List[torch.Tensor] = []
 
         for sequence in batch:
-            combined = "".join(aa + self.foldseek_seq[i] for i, aa in enumerate(sequence))
+            combined = "".join(
+                aa + self.foldseek_seq[i] for i, aa in enumerate(sequence)
+            )
 
             masked_sequences, positions = [], []
             for idx in range(len(sequence)):
@@ -115,4 +116,6 @@ class Likelihood:
         scores = self.score(sequences)
         wt_score = scores[0]
         scores = [wt_score - sc for sc in scores]  # todo: 妥当性の確認
-        return [sequence for sequence, sc in zip(sequences, scores) if sc >= self.threshold]
+        return [
+            sequence for sequence, sc in zip(sequences, scores) if sc >= self.threshold
+        ]

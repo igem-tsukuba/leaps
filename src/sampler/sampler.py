@@ -10,6 +10,10 @@ from Bio.Align import substitution_matrices
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import SeqIO
+import torch
+from transformers import EsmTokenizer, EsmForProteinFolding
+from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
+from transformers.models.esm.openfold_utils.protein import Protein as OFProtein, to_pdb
 
 
 class Sampler:
@@ -25,6 +29,7 @@ class Sampler:
             str(rec.seq) for rec in SeqIO.parse(fasta_path, "fasta")
         ]
 
+        self.pdb_path: str = self.cfg.pdb_path
         self.sample_path: Path = Path(self.cfg.sample_path)
         self.num_samples: int = self.cfg.num_samples
         self.mutate_ratio: float = self.cfg.mutate_ratio
@@ -35,6 +40,15 @@ class Sampler:
         self.blosum62: Dict[Tuple[str, str], int] = {
             (a, b): matrices[a, b] for a in matrices.alphabet for b in matrices.alphabet
         }
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        self.model = (
+            EsmForProteinFolding.from_pretrained("facebook/esmfold_v1")
+            .eval()
+            .to(self.device)
+        )
+        self.tokenizer = EsmTokenizer.from_pretrained("facebook/esmfold_v1")
 
     def _conserve(self, aa: str, min_score: int = 1) -> List[str]:
         """
@@ -96,7 +110,52 @@ class Sampler:
             sequence.append(parent[start:end])
         return "".join(sequence)
 
+    def _get_pdbstr(self, sequence: str) -> str:
+        """
+        Args:
+            sequence (str): タンパク質の配列
+
+        Returns:
+            str: PDB形式の文字列
+        """
+        inputs = self.tokenizer(
+            sequence,
+            return_tensors="pt",
+            add_special_tokens=False,
+            padding=False,
+            truncation=False,
+        )
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+
+        atom_positions = atom14_to_atom37(outputs.positions[-1], outputs)
+
+        protein = OFProtein(
+            aatype=outputs.aatype[0].cpu().numpy(),
+            atom_positions=atom_positions[0].cpu().numpy(),
+            atom_mask=outputs.atom37_atom_exists[0].cpu().numpy(),
+            residue_index=outputs.residue_index[0].cpu().numpy() + 1,
+            b_factors=outputs.plddt[0].cpu().numpy(),
+        )
+
+        pdbstr = to_pdb(protein)
+
+        return pdbstr
+
     def sample(self) -> List[str]:
+        """
+        サンプルを生成する関数
+        Returns:
+            List[str]: 生成されたサンプルのリスト
+        """
+
+        pdbstr = self._get_pdbstr(self.sequences[0])
+
+        with open(self.pdb_path, "w") as f:
+            f.write(pdbstr)
+
         samples = []
         records = []
 

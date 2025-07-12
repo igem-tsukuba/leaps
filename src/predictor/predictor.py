@@ -171,8 +171,8 @@ class Predictor:
         X_train, y_train = [], []
         with torch.no_grad():
             results = []
-            for seq in self.X_train[:]:
-                token_ids = self.tokenizer.encode(seq, return_tensors="pt")
+            for sequence in self.X_train[:]:
+                token_ids = self.tokenizer.encode(sequence, return_tensors="pt")
                 scores = []
                 for i in range(1, token_ids.shape[1] - 1):
                     masked_token_ids = token_ids.clone()
@@ -180,17 +180,17 @@ class Predictor:
                     output = model(masked_token_ids.to(self.device))
                     logits = output.logits[0, i]
                     scores.append(logits[token_ids[0, i]].item())
-                results.append((seq, scores))
+                results.append((sequence, scores))
 
             results.sort(key=lambda x: np.mean(x[1]), reverse=True)
-            for seq, scores in results[: self.destruct_per_samples]:
+            for sequence, scores in results[: self.destruct_per_samples]:
                 top_k = np.argsort(scores)[-self.num_destructions * 3 :]
                 probs = np.exp(np.array(scores)[top_k])
                 probs = probs / probs.sum()
                 indices = np.random.choice(
                     top_k, size=self.num_destructions, replace=False, p=probs
                 )
-                tmp = list(seq)
+                tmp = list(sequence)
                 for idx in indices:
                     candidates = _conserve(tmp[idx], max_score=-1)
                     if candidates:

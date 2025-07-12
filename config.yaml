@@ -1,4 +1,5 @@
 sampler:
+  pdb_path: "./data/generated/avgfp.pdb"
   fasta_path: "./data/processed/aequorea-victoria.fasta"
   sample_path: "./data/generated/aequorea-victoria.fasta"
   num_samples: 100000
@@ -70,7 +71,7 @@ predictor:
 evaluator:
   likelihood:
     config_path: "hugohrban/progen2-small"
-    pdb_path: "./data/raw/avgfp.pdb"
+    pdb_path: "./data/generated/avgfp.pdb"
     threshold: 0.0
     batch_size: 32
     debug: True
