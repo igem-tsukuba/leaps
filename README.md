@@ -4,6 +4,9 @@
 
 ## 🚀 Features
 
+> [!CAUTION]
+> 本プロジェクトは進行中のため、仕様が変更される可能性があります。
+
 ## 📚 Background
 
 ## 💻 Installation
@@ -20,8 +23,10 @@ $ source .venv/bin/activate
 # 3. 依存関係のインストール
 $ pip install --upgrade pip
 $ pip install -r requirements.txt
-$ git clone https://huggingface.co/westlake-repl/SaProt_650M_AF2
 ```
+
+> [!NOTE]
+> `saprot/bin`を[foldseek](https://drive.google.com/file/d/1B_9t3n_nlj8Y3Kpc_mMjtMdY0OPYa7Re/view?usp=sharing)に配置してください。
 
 ## ⚡️ Quick Start
 
